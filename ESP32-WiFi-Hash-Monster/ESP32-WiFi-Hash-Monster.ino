@@ -107,6 +107,8 @@ uint32_t lastDrawTime = 0;
 uint32_t lastButtonTime = millis();
 uint32_t lastAutoSwitchChTime = 0;
 
+uint32_t lastLoggedSSIDs = 0;
+
 int autoChannels[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}; // customize this
 int AUTO_CH_COUNT = sizeof(autoChannels) / sizeof(int);
 int autoChIndex = 0;
@@ -251,9 +253,10 @@ static char *formatUnit( int64_t number )
 struct ssid_info
 {
   uint8_t mac[6];
-  uint8_t ssid[33];
+  uint8_t ssid[33];  // SSID can be up to 32 bytes (32 characters) + 1 for null terminator
   uint8_t ssid_len;
   bool    ssid_eapol;     // to mark if we already have the eapol.
+  int8_t  rssi;         // signal strength
 };
 
 
@@ -332,7 +335,7 @@ void setup()
   // SD card ---------------------------------------------------------
   bool toggle = false;
   unsigned long lastcheck = millis();
-  tft.fillScreen(TFT_BLACK);
+  tft.fillScreen(TFT_BLACK); 
   while( !M5.sd_begin() ) {
     toggle = !toggle;
     tft.setTextColor( toggle ? TFT_BLACK : TFT_WHITE );
@@ -844,6 +847,14 @@ void wifi_promiscuous(void* buf, wifi_promiscuous_pkt_type_t type)
       memcpy( &ssid_known[ssid_count].ssid, pkt->payload+38, SSID_length);
       snprintf( last_ssid_mac, 18, "%s", ether_ntoa(ssid_known[ssid_count].mac) );
       ssid_known[u].ssid_len = SSID_length;
+      //# adicao
+      ssid_known[ssid_count].rssi = ctrl.rssi;
+      ssid_known[ssid_count].ssid_len = SSID_length;
+      memcpy(ssid_known[ssid_count].ssid, pkt->payload + 38, SSID_length);
+      ssid_known[ssid_count].ssid[SSID_length] = 0;
+      ssid_known[ssid_count].ssid_eapol = false;
+      ssid_known[ssid_count].rssi = pkt->rx_ctrl.rssi;
+      // # 
       ssid_count++;
       setLastSSID( 38, SSID_length, pkt->payload );
 
@@ -1136,6 +1147,62 @@ void coreTask( void * p )
       if ( currentTime - lastAutoSwitchChTime > AUTO_CHANNEL_INTERVAL ) {
         smartSwitchChannel(currentTime);
         needDraw = true;
+      }
+    }
+
+    // Check if there are new APs to log
+    /*
+    if (ssid_count > lastLoggedSSIDs)
+    {
+      BearSSL::File apLogFile(&SD);
+      if (apLogFile.open("/ap_log.csv", FILE_APPEND))
+      {
+        for (uint32_t i = lastLoggedSSIDs; i < ssid_count; i++)
+        {
+          char macStr[18] = {0};
+          ether_ntoa_r(ssid_known[i].mac, macStr);
+          String line = macStr;
+          line += ",";
+          line += String((char *)&ssid_known[i].ssid, ssid_known[i].ssid_len);
+          line += ",";
+          line += ssid_known[i].rssi;
+          line += ",";
+          line += millis(); // Timestamp in milliseconds
+
+          apLogFile.println(line);
+          Serial.println(line);
+        }
+        apLogFile.close();
+        lastLoggedSSIDs = ssid_count;
+      }
+      else
+      {
+        Serial.println("Failed to open ap_log.csv for writing");
+      }
+    } */
+    // Check for new APs and log them
+    if (ssid_count > lastLoggedSSIDs)
+    {
+      BearSSL::File apLogFile(&SD);
+      if (apLogFile.open("/ap_log.csv", FILE_APPEND))
+      {
+        for (uint32_t i = lastLoggedSSIDs; i < ssid_count; i++)
+        {
+          char macStr[18];
+          ether_ntoa_r(ssid_known[i].mac, macStr);
+          String line = String(macStr) + "," +
+                        String((char *)ssid_known[i].ssid) + "," +
+                        String(ssid_known[i].rssi) + "," +
+                        String(millis());
+          apLogFile.println(line);
+          Serial.println(line);
+        }
+        apLogFile.close();
+        lastLoggedSSIDs = ssid_count;
+      }
+      else
+      {
+        Serial.println("Failed to open ap_log.csv");
       }
     }
 
