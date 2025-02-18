@@ -32,12 +32,12 @@
 #endif
 
 #ifdef USE_M5STACK_UPDATER
-  #ifdef ARDUINO_M5STACK_Core2
+  #ifdef ARDUINO_M5STACK_Core2 
     #define M5STACK_UPDATER_MENUDELAY 5000 // how long (millis) the SDUpdater lobby is visible at boot
   #else
     #define M5STACK_UPDATER_MENUDELAY 0 // M5Stack Classic/Fire don't need to see the menu
   #endif
-  #define SDU_APP_NAME "WiFi Hash Monster" // title for SD-Updater UI
+  #define SDU_APP_NAME "WiFi Monster" // title for SD-Updater UI
   #include <M5StackUpdater.h> // https://github.com/tobozo/M5Stack-SD-Updater/
 #endif
 
@@ -84,7 +84,8 @@
 #define DRAW_DELAY 1000 // redraw graphs every second
 #define BUTTON_DEBOUNCE 150 // check button every n millis
 #define PKTS_BUF_SIZE 320 // buffer size for "packets/s" graph
-#define MAX_SSIDs 1792 // buffer cache size (*32bits) for Beacon information, reduce this in case of memory problems
+//#define MAX_SSIDs 1792 // buffer cache size (*32bits) for Beacon information, reduce this in case of memory problems 
+#define MAX_SSIDs 1200 // buffer cache size (*32bits) for Beacon information, reduce this in case of memory problems 
 
 #if CONFIG_FREERTOS_UNICORE
   #define RUNNING_CORE 0
@@ -347,7 +348,7 @@ void setup()
     // go to sleep after a minute, no need to hammer the SD Card reader
     if( lastcheck + 60000 < millis() ) {
       //Serial.println( GOTOSLEEP_MESSAGE );
-      #ifdef ARDUINO_M5STACK_Core2
+      #ifdef ARDUINO_M5STACK_Core2 
         M5.sd_end();
         M5.Axp.SetLcdVoltage(2500);
         M5.Axp.PowerOff();
@@ -364,11 +365,11 @@ void setup()
   autoChMode = preferences.getUInt("autoChMode", 0);
   preferences.end();
 
-  #ifdef ARDUINO_M5STACK_Core2
-    // specific M5Core2 tweaks go here
-  #else // M5Classic / M5Fire turn buzzer off
-    M5.Speaker.write(0);
-  #endif
+//  #ifdef ARDUINO_M5STACK_Core2
+//    // specific M5Core2 tweaks go here
+//  #else // M5Classic / M5Fire turn buzzer off
+//    M5.Speaker.write(0);
+//  #endif
 
   xTaskCreatePinnedToCore( bootAnimationTask, "bootAnimationTask", 8192, NULL, 16, NULL, RUNNING_CORE);
   xTaskCreatePinnedToCore( initSpritesTask,   "initSpritesTask",   8192, NULL, 16, NULL, RUNNING_CORE);
@@ -490,8 +491,8 @@ static void bootAnimationTask( void* param )
   tft.setTextSize(0);
 
   tft.setFont(&fonts::FreeMono12pt7b);
-  tft.drawString( "Purple Hash Monster", 6, 24);
-  tft.drawString( "by @g4lile0", 26, 44);
+  tft.drawString( "Black Hash Monster", 6, 24);
+  tft.drawString( "by @overcyber", 26, 44);
   tft.drawString( "90% PacketMonitor32", 6, 74);
   tft.drawString( "by @Spacehuhn", 26, 94);
   tft.setSwapBytes(true);
@@ -984,7 +985,7 @@ void draw()
     if (i < PKTS_BUF_SIZE - 1) pkts[i] = pkts[i + 1];
   }
 
-  #ifdef ARDUINO_M5STACK_Core2
+  #ifdef ARDUINO_M5STACK_Core2 
     // show onscreen clock since M5Core2 has a RTC module
     struct timeval tv;
     if (gettimeofday(&tv, NULL)!= 0) {
@@ -1183,15 +1184,13 @@ void coreTask( void * p )
     // Check for new APs and log them
     if (ssid_count > lastLoggedSSIDs)
     {
-      BearSSL::File apLogFile(&SD);
-      if (apLogFile.open("/ap_log.csv", FILE_APPEND))
-      {
-        for (uint32_t i = lastLoggedSSIDs; i < ssid_count; i++)
-        {
+      File apLogFile = SD.open("/ap_log.csv", FILE_APPEND);
+      if (apLogFile) {
+        for (uint32_t i = lastLoggedSSIDs; i < ssid_count; i++) {
           char macStr[18];
           ether_ntoa_r(ssid_known[i].mac, macStr);
           String line = String(macStr) + "," +
-                        String((char *)ssid_known[i].ssid) + "," +
+                        String((char*)ssid_known[i].ssid) + "," +
                         String(ssid_known[i].rssi) + "," +
                         String(millis());
           apLogFile.println(line);
@@ -1199,12 +1198,12 @@ void coreTask( void * p )
         }
         apLogFile.close();
         lastLoggedSSIDs = ssid_count;
-      }
-      else
-      {
-        Serial.println("Failed to open ap_log.csv");
+      } else {
+        Serial.println("Erro ao abrir ap_log.csv");
       }
     }
+// codigo para gravacao em sd
+
 
     if ( currentTime - lastButtonTime > BUTTON_DEBOUNCE ) {
       M5.update();
